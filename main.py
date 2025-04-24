@@ -1,5 +1,9 @@
 import glob
 import os
+import sys
+
+from xarray.core.duck_array_ops import var
+
 import numpy as np # 建议使用 np 别名
 import xarray as xr
 # import cupy as cp
@@ -89,6 +93,57 @@ if ds is not None:
 # else:
 #     print("\n数据加载失败。")
 # ds = ds[:,:,:]
+
+level_coords = ds.pressure_level.values
+try:
+    l_idx_200 = np.where(level_coords == 200)[0][0]
+    l_idx_500 = np.where(level_coords == 500)[0][0]
+    l_idx_700 = np.where(level_coords == 700)[0][0]
+    l_idx_850 = np.where(level_coords == 850)[0][0]
+    l_idx_1000 = np.where(level_coords == 1000)[0][0]
+    level_indices = {
+        200: l_idx_200,
+        500: l_idx_500,
+        700: l_idx_700,
+        850: l_idx_850,
+        1000: l_idx_1000
+    }
+except IndexError:
+    print("\n错误：指定的级别坐标不存在于数据中。")
+    sys.exit(1)
+
+variable_map = {name: i for i, name in enumerate(variables)}
+var_indices = {
+    't': variable_map['temperature'],
+    'q': variable_map['specific_humidity'],
+    'ciwc': variable_map['specific_cloud_ice_water_content'],
+    'clwc': variable_map['specific_cloud_liquid_water_content'],
+    'crwc': variable_map['specific_rain_water_content'],
+    'cswc': variable_map['specific_snow_water_content']
+}
+
+target_channel_indices = []
+target_levels = [200, 500, 700, 850, 1000]
+
+for var_key in ['t','q','ciwc','clwc','crwc','cswc']:
+    v_idx = var_indices[var_key]
+    for level in target_levels:
+        l_idx = level_indices[level]
+        channel_index = v_idx *13 + l_idx
+        target_channel_indices.append((channel_index))
+
+print(f"计算得到的目标通道索引 (共 {len(target_channel_indices)} 个):")
+print(target_channel_indices)
+
+# 更新目标通道数量
+N_VARS = ds.sizes['variable']
+N_TARGET_CHANNELS = len(target_channel_indices)
+N_TIME_STEPS_SLICE = 28
+N_LEVELS =  ds.sizes['pressure_level']
+N_LAT = ds.sizes['latitude']
+N_LON = ds.sizes['longitude']
+N_CHANNELS = N_VARS * N_LEVELS
+
 lats = ds.latitude.values.tolist()
 lons = ds.longitude.values.tolist()
 
@@ -100,20 +155,21 @@ train_data = []
 for i in range(146):
     slicer = [slice(None)] * ds.ndim
     if i==0:
-        start_idx_print = -28
+        start_idx_print = -N_TIME_STEPS_SLICE
         end_idx_print = 'None'
-        slicer[time_axis] = slice(-28, None)
+        slicer[time_axis] = slice(-N_TIME_STEPS_SLICE, None)
     else:
         idx = i*40
-        start_idx_print = -idx-28
+        start_idx_print = -idx-N_TIME_STEPS_SLICE
         end_idx_print = -idx
-        slicer[time_axis] = slice(-idx-28, -idx)
+        slicer[time_axis] = slice(-idx-N_TIME_STEPS_SLICE, -idx)
     
     print(f"切片索引: {start_idx_print} 到 {end_idx_print}" )
 
     try:
-        data_slice = ds[tuple(slicer)].values
-        train_data.append(data_slice)
+        data_slice_original = ds[tuple(slicer)].values
+        data_slice_time_first = np.transpose(data_slice_original, (1,0,2,3,4))
+        data_slice_reshaped = data_slice_time_first.reshape(N_TIME_STEPS_SLICE,N_CHANNELS,N_LAT,N_LON)
     except MemoryError:
         print(f"\n错误：内存不足，无法加载样本 {i+1} 的数据！程序终止。")
         sys.exit(1) # 内存不足时直接退出
@@ -126,3 +182,66 @@ print(f"\n成功提取 {len(train_data)} 个训练样本。")
 # 例如：打印第一个样本的形状
 if train_data:
     print(f"第一个样本形状: {train_data[0].shape}")
+
+lation_vals = []
+for i in range(181):
+    for j in range(360):
+        lation_vals.append([lats[i],lons[j]])
+lation_vals = np.array(lation_vals)
+print(lation_vals)
+
+from tqdm import tqdm
+import gc
+
+N_POINTS = N_LAT * N_LON
+
+final_vals_list = []
+
+for flag,dat in tqdm(enumerate(train_data),total=len(train_data),desc = "处理样本"):
+    first_feat = dat[0,:,:,:].reshape(N_CHANNELS,N_POINTS).transpose()
+    second_feat = dat[1,:,:,:].reshape(N_CHANNELS,N_POINTS).transpose()
+    diff_feat = second_feat - first_feat
+    final_vals = (dat[1, :, :, :] - dat[0, :, :, :]).reshape(N_CHANNELS, N_POINTS).transpose()
+
+    all_vals = []
+    for i in range(12):
+        current_idx = i + 2
+
+        time_vals = np.full((N_POINTS,1),i)
+        sub_vals_features = np.concatenate((time_vals, lation_vals, first_feat, second_feat, diff_feat), axis=1)
+
+        # 4. 提取当前未来时间步的目标变量
+        # 取出 dat 中当前预测时间步的数据，形状: (117, 181, 360)
+        current_step_data_full = dat[current_idx, :, :, :]
+        # 使用 target_channel_indices 提取目标通道，形状: (30, 181, 360)
+        target_data_channels = current_step_data_full[target_channel_indices, :, :]
+        # Reshape 和 Transpose -> (65160, 30)
+        target_vals = target_data_channels.reshape(N_TARGET_CHANNELS, N_POINTS).transpose()
+
+        # 5. 拼接特征和目标变量
+        # sub_vals 形状: (65160, 354 + 30) = (65160, 384)
+        sub_vals = np.concatenate((sub_vals_features, target_vals), axis=1)
+
+        # 6. 存储
+        all_vals.append(sub_vals)
+
+    # 7. 合并当前样本的所有预测时间步数据
+    # all_vals 形状: (12 * 65160, 384) = (781920, 384)
+    all_vals = np.concatenate(all_vals, axis=0)
+    final_vals_list.append(all_vals)
+
+    # 清理内存
+    del first_feat, second_feat, diff_feat, all_vals
+    del time_vals, sub_vals_features, current_step_data_full, target_data_channels, target_vals, sub_vals, all_vals
+    gc.collect()
+
+# 8. 合并所有样本的数据
+print("\n合并所有样本的处理结果...")
+# final_vals 形状: (num_samples * 781920, 384) = (357 * 781920, 384) approx (279 million, 384)
+final_vals = np.concatenate(final_vals_list, axis=0)
+
+print(f"\n特征矩阵构建完成。最终形状: {final_vals.shape}")
+
+
+    
+   

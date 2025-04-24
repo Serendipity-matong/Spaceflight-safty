@@ -6,7 +6,7 @@
 # import torch
 # import numpy as np
 # from mpmath import power
-# 
+#
 # import matplotlib.pyplot as plt
 #
 # # 设置 SimHei 字体和禁用 Unicode minus
