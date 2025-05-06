@@ -7,18 +7,18 @@ from xarray.core.duck_array_ops import var
 import numpy as np # 建议使用 np 别名
 import xarray as xr
 # import cupy as cp
-
+import pickle
 # 定义包含数据的根目录和变量列表
-base_path = 'E:/pressure_level'
+base_path = '/Users/fangzijie/Downloads/pressure_level'
 variables = [
     'geopotential', 
-    'specific_cloud_ice_water_content', 
+    'specific_cloud_ice_water_content',
     'specific_cloud_liquid_water_content',
-    'specific_humidity', 
-    'specific_rain_water_content', 
+    'specific_humidity',
+    'specific_rain_water_content',
     'specific_snow_water_content',
-    'temperature', 
-    'u_component_of_wind', 
+    'temperature',
+    'u_component_of_wind',
     'v_component_of_wind'
 ]
 year = 2018 # 指定要加载的年份
@@ -75,7 +75,7 @@ def load_data(base_path, variables, year):
                 ds_var = xr.open_mfdataset(
                     nc_files, 
                     combine='by_coords', 
-                    parallel=True
+                    parallel=False  # <--- 修改这里
                 )
                 # 加载后再进行分块
                 ds_var = ds_var.chunk({'valid_time': 1})
@@ -109,7 +109,7 @@ def load_data(base_path, variables, year):
                 ds_var = xr.open_mfdataset(
                     nc_files, 
                     combine='by_coords', 
-                    parallel=True
+                    parallel=False  # <--- 修改这里
                 )
                 # 加载后再进行分块
                 ds_var = ds_var.chunk({'valid_time': 1})
@@ -153,9 +153,6 @@ def load_data(base_path, variables, year):
     print("分块完成。")
     
     return final_ds
-
-# 添加必要的导入
-import pickle
 
 # 调用 load_data 函数加载数据
 ds_dataset = load_data(base_path, variables, year)
@@ -230,10 +227,10 @@ lats = ds.latitude.values.tolist()
 lons = ds.longitude.values.tolist()
 
 BATCH_SIZE = 10
-NUM_BATCHES = 36
+NUM_BATCHES = 9
 
-output_dif = "E:/processed_data"
-os = os.makedirs(output_dif, exist_ok=True)
+output_dif = "/Users/fangzijie/Documents/processed_data"
+os.makedirs(output_dif, exist_ok=True)
 
 time_dim = 'valid_time'
 time_axis = ds.get_axis_num(time_dim)
@@ -252,7 +249,7 @@ for batch in range(NUM_BATCHES):
     print(f"\n开始处理第 {batch + 1} 批次...")
     # 1. 确定批次的时间范围
     start_idx = batch * BATCH_SIZE
-    end_idx = min((batch + 1) * BATCH_SIZE, 360)
+    end_idx = min((batch + 1) * BATCH_SIZE, 90)
     train_data = []
 
     for i in range(start_idx, end_idx):
