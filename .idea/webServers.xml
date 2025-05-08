@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="1df8561e-6df7-4595-9c30-327d94f0b04f" name="gpuweek">
+        <fileTransfer rootFolder="/root" accessType="SFTP" host="northwest1.gpugeek.com" port="53615" sshConfigId="e99fb0e0-d727-4003-b796-b63393eb7675" sshConfig="root@northwest1.gpugeek.com:53615 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" isUseSudo="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

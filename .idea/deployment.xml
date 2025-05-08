@@ -1,53 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="root@connect.westc.gpuhub.com:40048 password (5)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="root@northwest1.gpugeek.com:53615 password" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="root@connect.nmb1.seetacloud.com:11007 password">
+      <paths name="gpuweek">
         <serverdata>
           <mappings>
-            <mapping deploy="/tmp/base_env" local="$PROJECT_DIR$" />
+            <mapping deploy="/" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.westb.seetacloud.com:44516 password">
+      <paths name="root@northwest1.gpugeek.com:53615 password">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="root@connect.westc.gpuhub.com:40048 password">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/root/autodl-tmp/tmp_env" local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="root@connect.westc.gpuhub.com:40048 password (2)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/tmp/pycharm_project_915" local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="root@connect.westc.gpuhub.com:40048 password (3)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/tmp/pycharm_project_61" local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="root@connect.westc.gpuhub.com:40048 password (4)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/root/autodl-tmp/project" local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="root@connect.westc.gpuhub.com:40048 password (5)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/root/autodl-tmp/project" local="$PROJECT_DIR$" />
+            <mapping deploy="/tmp/pycharm_project_315" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>
