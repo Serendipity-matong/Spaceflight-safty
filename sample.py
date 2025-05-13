@@ -9,7 +9,7 @@ import xarray as xr
 # import cupy as cp
 import pickle
 # 定义包含数据的根目录和变量列表
-base_path = 'F:/pressure_level'
+base_path = '/Users/fangzijie/Documents/pressure_level'
 variables = [
     'geopotential',
     'specific_cloud_ice_water_content',
@@ -229,7 +229,7 @@ lons = ds.longitude.values.tolist()
 BATCH_SIZE = 10
 NUM_BATCHES = 37  # 修改为37，这样可以处理约370个样本，覆盖全年
 
-output_dif = "E:/1"
+output_dif = "/Users/fangzijie/Documents/process_data"
 os.makedirs(output_dif, exist_ok=True)
 
 time_dim = 'valid_time'

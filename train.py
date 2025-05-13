@@ -8,7 +8,6 @@ from sklearn.multioutput import MultiOutputRegressor  # <--- 添加此导入
 import xgboost as xgb
 import lightgbm as lgb
 import gc  # 导入垃圾回收模块
-import joblib # <--- 添加 joblib 导入
 
 N_VARS = 9
 N_LEVELS = 13
@@ -30,7 +29,7 @@ if not batch_files:
 
 print(f"找到以下批处理文件: {batch_files}")
 
-batch_files = batch_files[:2]
+batch_files = batch_files[:4]
 
 for file_path in batch_files:
     print(f"正在加载文件: {file_path}")
@@ -83,11 +82,6 @@ gc.collect()  # 在大型列表删除后进行一次垃圾回收
 print(f"\n总特征 X 的形状:{X.shape}")
 print(f"总目标 Y 的形状:{Y.shape}")
 
-# --- 创建模型保存目录 ---
-model_save_dir = "./saved_models_cluster" # 您可以根据需要更改此路径
-os.makedirs(model_save_dir, exist_ok=True)
-print(f"模型将保存在目录: {os.path.abspath(model_save_dir)}")
-
 # --- K折交叉验证 ---
 n_splits = 5
 kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
@@ -126,11 +120,6 @@ for fold, (train_index, val_index) in enumerate(kf.split(X, Y)):
     Y_pred_xgb = xgb_model.predict(X_val_scaled)  # 使用标准化后的数据
     print(f"XGBoost 模型 (第 {fold + 1} 折) 训练和预测完成。")
 
-    # --- 保存 XGBoost 模型 ---
-    xgb_model_path = os.path.join(model_save_dir, f"xgb_model_fold_{fold + 1}.joblib")
-    joblib.dump(xgb_model, xgb_model_path)
-    print(f"XGBoost 模型 (第 {fold + 1} 折) 已保存至: {xgb_model_path}")
-
     # --- 在训练LightGBM之前，尝试释放XGBoost占用的内存 ---
     del xgb_model
     gc.collect()
@@ -154,16 +143,11 @@ for fold, (train_index, val_index) in enumerate(kf.split(X, Y)):
     )
     # 使用 MultiOutputRegressor 包装基础模型以处理多输出
     # 将 n_jobs 设置为 1，以串行方式在GPU上训练每个目标模型，避免GPU内存溢出
-    lgb_model = MultiOutputRegressor(base_lgb_model, n_jobs=6) # 注意：如果仍遇到OOM，请首先尝试将此处的 n_jobs 改为 1
+    lgb_model = MultiOutputRegressor(base_lgb_model, n_jobs=6) 
 
     lgb_model.fit(X_train_scaled, Y_train)  # Y_train 现在可以是2D的
     Y_pred_lgb = lgb_model.predict(X_val_scaled)  # 使用标准化后的数据
     print(f"LightGBM 模型 (第 {fold + 1} 折) 训练和预测完成。")
-
-    # --- 保存 LightGBM 模型 ---
-    lgb_model_path = os.path.join(model_save_dir, f"lgb_model_fold_{fold + 1}.joblib")
-    joblib.dump(lgb_model, lgb_model_path)
-    print(f"LightGBM 模型 (第 {fold + 1} 折) 已保存至: {lgb_model_path}")
 
     # --- 投票融合 (简单平均) ---
     Y_val_compare = Y_val  # 真实值
