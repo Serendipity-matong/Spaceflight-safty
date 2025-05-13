@@ -9,7 +9,7 @@ import xarray as xr
 # import cupy as cp
 import pickle
 # 定义包含数据的根目录和变量列表
-base_path = '/Users/fangzijie/Downloads/pressure_level'
+base_path = 'F:/pressure_level'
 variables = [
     'geopotential',
     'specific_cloud_ice_water_content',
@@ -217,7 +217,7 @@ print(target_channel_indices)
 # 更新目标通道数量
 N_VARS = ds.sizes['variable']
 N_TARGET_CHANNELS = len(target_channel_indices)
-N_TIME_STEPS_SLICE = 14
+N_TIME_STEPS_SLICE = 4  # 修改为一天的时间步数
 N_LEVELS =  ds.sizes['pressure_level']
 N_LAT = ds.sizes['latitude']
 N_LON = ds.sizes['longitude']
@@ -227,9 +227,9 @@ lats = ds.latitude.values.tolist()
 lons = ds.longitude.values.tolist()
 
 BATCH_SIZE = 10
-NUM_BATCHES = 9
+NUM_BATCHES = 37  # 修改为37，这样可以处理约370个样本，覆盖全年
 
-output_dif = "/Users/fangzijie/Documents/processed_data"
+output_dif = "E:/1"
 os.makedirs(output_dif, exist_ok=True)
 
 time_dim = 'valid_time'
@@ -249,7 +249,7 @@ for batch in range(NUM_BATCHES):
     print(f"\n开始处理第 {batch + 1} 批次...")
     # 1. 确定批次的时间范围
     start_idx = batch * BATCH_SIZE
-    end_idx = min((batch + 1) * BATCH_SIZE, 90)
+    end_idx = min((batch + 1) * BATCH_SIZE, 365)  # 修改为365
     train_data = []
 
     for i in range(start_idx, end_idx):
@@ -268,7 +268,8 @@ for batch in range(NUM_BATCHES):
         try:
             data_slice_original = ds[tuple(slicer)].values
             data_slice_time = np.transpose(data_slice_original, (1,0,2,3,4))
-            data_slice_reshaped = data_slice_time.reshape(N_TIME_STEPS_SLICE, N_CHANNELS, N_LAT, N_LON)
+            # 重塑为(时间步, 变量, 气压层, 纬度, 经度)的结构
+            data_slice_reshaped = data_slice_time.reshape(N_TIME_STEPS_SLICE, N_VARS, N_LEVELS, N_LAT, N_LON)
             train_data.append(data_slice_reshaped)
             print(f"成功加载样本 {i+1}")
         except MemoryError:
@@ -282,76 +283,20 @@ for batch in range(NUM_BATCHES):
     if not train_data:
         print("\n当前批次没有可处理的样本，跳过此批次。")
         continue
-    batch_final_vals_list = []
-    N_POINTS = N_LAT * N_LON
-    for flat,dat in tqdm(enumerate(train_data),total=len(train_data),desc = f"处理批次 {batch + 1} 中的样本"):
-        # 使用float32而不是默认的float64，减少一半内存使用
-        first_data = dat[0,:,:,:].reshape(N_CHANNELS,N_POINTS).transpose().astype(np.float32)
-        second_data = dat[1,:,:,:].reshape(N_CHANNELS,N_POINTS).transpose().astype(np.float32)
-        diff_data = second_data - first_data
 
-        # 分批处理时间步，减少内存使用
-        for j in range(0, 12, 2):  # 每次处理2个时间步，而不是3个
-            sub_batch_vals = []
-            for k in range(j, min(j+2, 12)):
-                current_idx = k+2
-                time_vals = np.full((N_POINTS,1), k, dtype=np.float32)
 
-                # 分步构建数组，避免一次性大内存分配
-                sub_vals = np.concatenate((time_vals, lation_vals), axis=1)
-                del time_vals
+    # ... (您之前的代码) ...
 
-                # 逐步添加数据，每次添加后释放临时变量
-                temp = np.concatenate((sub_vals, first_data), axis=1)
-                del sub_vals
-                sub_vals = temp
-                del temp
+    # 假设 train_data 是这样定义的列表:
+    # train_data = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]] 或其他包含数值的列表
 
-                temp = np.concatenate((sub_vals, second_data), axis=1)
-                del sub_vals
-                sub_vals = temp
-                del temp
+    # 将 train_data 列表转换为 NumPy 数组并指定数据类型为 float32
+    train_data = np.array(train_data, dtype=np.float32)
 
-                temp = np.concatenate((sub_vals, diff_data), axis=1)
-                del sub_vals
-                sub_vals = temp
-                del temp
-
-                # 处理目标数据
-                current_step_data_full = dat[current_idx,:,:,:]
-                target_data_channels = current_step_data_full[target_channel_indices,:,:]
-                target_vals = target_data_channels.reshape(N_TARGET_CHANNELS,N_POINTS).transpose().astype(np.float32)
-
-                # 添加目标数据
-                temp = np.concatenate((sub_vals, target_vals), axis=1)
-                del sub_vals
-                sub_vals = temp
-                del temp
-
-                sub_batch_vals.append(sub_vals)
-
-                # 及时清理内存
-                del current_step_data_full, target_data_channels, target_vals
-                gc.collect()
-
-            # 合并当前子批次的数据
-            if sub_batch_vals:
-                sub_batch_array = np.concatenate(sub_batch_vals, axis=0)
-                batch_final_vals_list.append(sub_batch_array)
-                del sub_batch_vals, sub_batch_array
-                gc.collect()
-
-        del first_data, second_data, diff_data
-        gc.collect()
-
-    batch_final_vals = np.concatenate(batch_final_vals_list,axis=0)
-    batch_output_file = os.path.join(output_dif,f"batch_{batch + 1}.npy")
-    print(f"\n保存批次 {batch+1} 结果到 {batch_output_file}")
-    np.save(batch_output_file, batch_final_vals)
-    print(f"批次 {batch+1} 结果形状: {batch_final_vals.shape}")
-    del train_data, batch_final_vals_list
-    if 'batch_final_vals' in locals():
-        del batch_final_vals
+    # ... (您之后的代码) ...
+    train_data.astype(np.float32)
+    batch_output_file = os.path.join(output_dif,f"{batch+1}.npy")
+    np.save(batch_output_file, train_data)
     gc.collect()
 # 8. 合并所有样本的数据
 print("\n合并所有样本的处理结果...")
@@ -378,4 +323,4 @@ print("\n合并所有样本的处理结果...")
 # file_path = os.path.join(data_dir, file_dir)
 # data = np.load(file_path)
 # print(f"\n数据的形状:{data.shape}")
-
+# 定义中国区域的经纬度范围
