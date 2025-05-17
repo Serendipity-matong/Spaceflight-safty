@@ -5,6 +5,7 @@ import torch.nn as nn
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset, DataLoader
 import math
+import joblib
 
 X_data_full = np.load("/Users/fangzijie/Documents/processed_data_corrected/X_dataset.npy")
 Y_data_full = np.load("/Users/fangzijie/Documents/processed_data_corrected/Y_dataset.npy")
@@ -17,14 +18,15 @@ X_data = X_data_full[:num_samples_to_keep]
 Y_data = Y_data_full[:num_samples_to_keep]
 
 print(f"原始样本数: {num_total_samples}, 裁剪后样本数: {X_data.shape[0]}")
+print(X_data.shape, Y_data.shape)
 NUM_SAMPLES = X_data.shape[0]
 INPUT_HISTORY_STEPS = X_data.shape[1]
 MODEL_IN_CHANNELS = X_data.shape[2]
 IMG_H = X_data.shape[3]
 IMG_W = X_data.shape[4]
 
-N_TARGET_CHANNELS = Y_data.shape[1]
-OUTPUT_FORECAST_STEPS = Y_data.shape[2]
+OUTPUT_FORECAST_STEPS = Y_data.shape[1]
+N_TARGET_CHANNELS = Y_data.shape[2]
 
 IMG_SIZE = (IMG_H, IMG_W)
 
@@ -219,8 +221,19 @@ for fold, (train_index, val_index) in enumerate(kf.split(X_data)):
 
         if avg_val_loss < best_val_loss_fold:
             best_val_loss_fold = avg_val_loss
-            # 可选: 保存当前折的最佳模型
-            # torch.save(model_fold.state_dict(), f"transformer_weather_model_fold_{fold+1}_best.pth")
+            # 3. 保存最佳模型和对应的scalers
+            model_save_path = f"transformer_model_fold_{fold+1}_best.pth"
+            scaler_X_save_path = f'scaler_X_fold_{fold+1}.joblib'
+            scaler_Y_save_path = f'scaler_Y_fold_{fold+1}.joblib'
+
+            if isinstance(model_fold, nn.DataParallel):
+                torch.save(model_fold.module.state_dict(), model_save_path)
+            else:
+                torch.save(model_fold.state_dict(), model_save_path)
+            joblib.dump(scaler_X_fold, scaler_X_save_path)
+            joblib.dump(scaler_Y_fold, scaler_Y_save_path)
+            # 移除末尾的 .save(...)
+            print(f"    折 [{fold + 1}/{N_SPLITS}], Epoch [{epoch + 1}/{EPOCHS}] -- New best val loss: {avg_val_loss:.4f}. Saved model to {model_save_path} and scalers.")
 
     fold_results.append(best_val_loss_fold)
     print(f"  第 {fold + 1} 折完成。最佳验证损失: {best_val_loss_fold:.4f}")
